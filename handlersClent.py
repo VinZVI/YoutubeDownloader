@@ -27,6 +27,7 @@ class FSMclient(StatesGroup):
 
 available_streams = {}
 streams = []
+chat_id = str()
 # from aiogram.types import ReplyKeyboardRemove # класс удаляет клавиатуру
 
 """ Команда /Start - начало диалога"""
@@ -38,6 +39,8 @@ async def commands_start(message: types.Message):
     if message.chat.type == types.ChatType.PRIVATE:
         await FSMclient.urlState.set()  # устанавливаем состояние бота urlState
         await message.reply('Хотите скачать видео или аудио с YouTube? Просто введите URL:')
+        global chat_id
+        chat_id = message.chat.id
     # если бот добавлен в группу
     else:
         bot_info = await bot.get_me()  # Получаем информацию о нашем боте
@@ -115,7 +118,20 @@ async def callbacks_quality(call: types.CallbackQuery, state: FSMContext):
     stream_count = call.data.split("_")[1]
     get_url_download = streams[int(stream_count) - 1]
     print(get_url_download)
-    download(get_url_download, urlPafy)
+    await download(get_url_download, urlPafy)
+
+
+""" Ловим сообщение от клиента получаем fail_id 
+    и отправляем фаил пользователю              """
+
+
+# @bot.message_handler(content_types=["document", "video", "audio"])
+async def handle_files(message):
+    document_id = message.document.file_id
+
+    # print(document_id) # Выводим file_id
+
+    await bot.send_audio(chat_id, document_id)  # Отправляем пользователю file_id
 
 
 # Хэндлер на текстовое сообщение с текстом “Отмена”
@@ -133,5 +149,6 @@ def register_handlers_client(dp: Dispatcher):
     dp.register_message_handler(get_url, state=FSMclient.urlState)
     dp.register_callback_query_handler(callbacks_choice, Text(startswith="choice_"), state=FSMclient.choiceState)
     dp.register_callback_query_handler(callbacks_quality, Text(startswith="quality_"), state=FSMclient.qualityState)
+    dp.register_message_handler(handle_files, content_types=["document", "video", "audio"])
     dp.register_message_handler(action_cancel, commands='отмена')
     dp.register_message_handler(action_cancel, Text(equals='отмена', ignore_case=True))
