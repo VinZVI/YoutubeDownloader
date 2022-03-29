@@ -1,10 +1,7 @@
-import os
-
-from aiogram import Bot
-from aiogram.dispatcher import Dispatcher
 from aiogram.utils import executor
 
-import handlersClent
+from handlersClent import register_handlers_client, dp
+
 
 # logging.basicConfig(
 #     level=logging.DEBUG,
@@ -14,15 +11,14 @@ import handlersClent
 # )
 
 
-bot = Bot(token=os.getenv("TOKEN"))
-dp = Dispatcher(bot)
+
 
 
 async def on_startup(_):
     print('Бот вышел в онлайн')
 
 
-handlersClent.register_handlers_client(dp)
+register_handlers_client(dp)
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True, on_startup=on_startup)

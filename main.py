@@ -1,13 +1,14 @@
-import sys
 import os
-import pafy
+import sys
 
+import pafy
 
 print("Хотите скачать видео или аудио с YouTube? Просто введите URL ниже...")
 url = input("Введите URL: ")
 
 print("Что-бы скачать видео введите: 1 | Что-бы скачать аудио введите: 2 ")
 choice = input("Введите цифру: ")
+
 
 def download(choice):
     try:
@@ -32,7 +33,7 @@ def download(choice):
 
         stream_count = int(input("Введите номер: "))
         d = streams[stream_count - 1].download()
-
+        # print(d)
         if choice == "2":
             audio_extension = str(available_streams[stream_count])
             audio_extension = audio_extension.split("@")[0].split(":")[1]
@@ -41,7 +42,7 @@ def download(choice):
             music_file = f"{file_name}.{audio_extension}"
             base = os.path.splitext(music_file)[0]
             os.rename(music_file, base + ".mp3")
-
+            print(music_file, base)
         print("Скачивание успешно завершено!")
     except:
         print("Упс...Проверьте данные")

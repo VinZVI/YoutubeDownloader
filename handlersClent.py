@@ -1,12 +1,20 @@
+import os
 from re import fullmatch
 
 import pafy
+from aiogram import Bot
 from aiogram import types, Dispatcher
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
-from youtubeDownloderBot import bot
+from dowloader import download
+
+storage = MemoryStorage()  # запускаем место для хранени я ответов
+bot = Bot(token=os.getenv("TOKEN"))
+dp = Dispatcher(bot, storage=storage)
 
 """ Машина состояний диалога """
 
@@ -17,6 +25,8 @@ class FSMclient(StatesGroup):
     qualityState = State()  # выбор качества видео или аудио
 
 
+available_streams = {}
+streams = []
 # from aiogram.types import ReplyKeyboardRemove # класс удаляет клавиатуру
 
 """ Команда /Start - начало диалога"""
@@ -39,8 +49,6 @@ async def commands_start(message: types.Message):
 
 
 """ Ловим Url и записываем его в память"""
-
-
 # @dp.message_handler(state=FSMclient.urlState)
 async def get_url(message: types.Message):
     if not fullmatch(r"(https?:\/\/)?(\www\.youtube)\.([a-z]{2,6}\.?)(\/[\w\.]*)*\/?.*", message.text):
@@ -48,7 +56,7 @@ async def get_url(message: types.Message):
         return
     global urlPafy
     urlPafy = pafy.new(message.text)
-    await FSMclient.next()
+    # print(urlPafy)
     buttons = [
         types.InlineKeyboardButton(text="Видео", callback_data="choice_video"),
         types.InlineKeyboardButton(text="Аудио", callback_data="choice_audio"),
@@ -58,15 +66,14 @@ async def get_url(message: types.Message):
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(*buttons)
     await message.reply('В каком формате выхотите скачать?\n', reply_markup=keyboard)
-
+    await FSMclient.next()
 
 """ Ловим выбор формата video или audio
     Получаем качество видео или аудио для выбора"""
-
-
 # @dp.callback_query_handler(Text(startswith="choice_"), state=FSMclient.choiceState)
 async def callbacks_choice(call: types.CallbackQuery):
     try:
+        global streams
         # Парсим строку и извлекаем действие, например `choice_video` -> `video`
         action = call.data.split("_")[1]
         if action == "video":
@@ -76,19 +83,20 @@ async def callbacks_choice(call: types.CallbackQuery):
             streams = urlPafy.audiostreams
             text = "Выберите желаемое качество аудио:\n"
 
-        available_streams = {}
+
         count = 1
         keyboard = types.InlineKeyboardMarkup()
         for stream in streams:
             available_streams[count] = stream
             # print(f"{count}: {stream}")
-            buttons = types.InlineKeyboardButton(text=f"{count}: {stream}", callback_data=f"{count}")
+            buttons = types.InlineKeyboardButton(text=f"{count}: {stream}", callback_data=f"quality_{count}")
             keyboard.add(buttons)
             count += 1
 
         await call.message.answer(text, reply_markup=keyboard)
         # Не забываем отчитаться о получении колбэка
         await call.answer()
+        await FSMclient.next()
         # Если бы мы не меняли сообщение, то можно было бы просто удалить клавиатуру
         # вызовом await call.message.delete_reply_markup().
     except:
@@ -100,8 +108,14 @@ async def callbacks_choice(call: types.CallbackQuery):
     Скачиваем видео или аудио и отправляем пользователю """
 
 
-# @dp.callback_query_handler(Text(startswith="choice_"), state=FSMclient.qualityState)
-# async def callbacks_quality(call: types.CallbackQuery):
+# @dp.callback_query_handler(Text(startswith="quality_"), state=FSMclient.qualityState)
+async def callbacks_quality(call: types.CallbackQuery, state: FSMContext):
+    await call.answer()
+    await state.finish()
+    stream_count = call.data.split("_")[1]
+    get_url_download = streams[int(stream_count) - 1]
+    print(get_url_download)
+    download(get_url_download, urlPafy)
 
 
 # Хэндлер на текстовое сообщение с текстом “Отмена”
@@ -116,7 +130,8 @@ async def action_cancel(message: types.Message):
 
 def register_handlers_client(dp: Dispatcher):
     dp.register_message_handler(commands_start, commands='start')
-    dp.register_message_handler(get_url, commands='start')
+    dp.register_message_handler(get_url, state=FSMclient.urlState)
     dp.register_callback_query_handler(callbacks_choice, Text(startswith="choice_"), state=FSMclient.choiceState)
+    dp.register_callback_query_handler(callbacks_quality, Text(startswith="quality_"), state=FSMclient.qualityState)
     dp.register_message_handler(action_cancel, commands='отмена')
     dp.register_message_handler(action_cancel, Text(equals='отмена', ignore_case=True))
