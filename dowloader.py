@@ -1,6 +1,6 @@
 import os
 
-from userBot import client
+from create_bot_client import client
 
 
 async def download(get_url_download, urlPafy):
@@ -16,8 +16,10 @@ async def download(get_url_download, urlPafy):
         os.rename(music_file, base + ".mp3")
         await client.send_file('@Date_countBot', f'{file_name}.mp3')
         print("Скачивание успешно завершено!")
+        os.remove(file_name + '.mp3')  # удаляем видео на диске в целях экономии места
     else:
         await client.send_file('@Date_countBot', f'{file_name}.mp4')
         print("Скачивание успешно завершено!")
+        os.remove(file_name + '.mp4')
     # except:
-    # print("Упс...Проверьте данные")
+    #     print("Упс...Проверьте данные")

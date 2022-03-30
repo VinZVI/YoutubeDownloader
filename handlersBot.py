@@ -1,20 +1,17 @@
-import os
-from re import fullmatch
-
 import pafy
-from aiogram import Bot
 from aiogram import types, Dispatcher
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
+from create_bot_client import bot
 from dowloader import download
 
-storage = MemoryStorage()  # запускаем место для хранени я ответов
-bot = Bot(token=os.getenv("TOKEN"))
-dp = Dispatcher(bot, storage=storage)
+# bot = Bot(token=os.getenv("TOKEN"))
+#
+# dp = Dispatcher(bot, storage=storage)
+
 
 """ Машина состояний диалога """
 
@@ -30,9 +27,8 @@ streams = []
 chat_id = str()
 # from aiogram.types import ReplyKeyboardRemove # класс удаляет клавиатуру
 
+
 """ Команда /Start - начало диалога"""
-
-
 # @dp.message_handler(commands='start', state=None)
 async def commands_start(message: types.Message):
     # начало для приватного чата
@@ -54,9 +50,9 @@ async def commands_start(message: types.Message):
 """ Ловим Url и записываем его в память"""
 # @dp.message_handler(state=FSMclient.urlState)
 async def get_url(message: types.Message):
-    if not fullmatch(r"(https?:\/\/)?(\www\.youtube)\.([a-z]{2,6}\.?)(\/[\w\.]*)*\/?.*", message.text):
-        await message.reply('Пожалуйста. Введие данные в формате Url - https://www.youtube.com/...')
-        return
+    # if not fullmatch(r"(https?:\/\/)?(\www\.youtube)\.([a-z]{2,6}\.?)(\/[\w\.]*)*\/?.*", message.text):
+    #     await message.reply('Пожалуйста. Введие данные в формате Url - https://www.youtube.com/...')
+    #     return
     global urlPafy
     urlPafy = pafy.new(message.text)
     # print(urlPafy)
@@ -76,6 +72,7 @@ async def get_url(message: types.Message):
 # @dp.callback_query_handler(Text(startswith="choice_"), state=FSMclient.choiceState)
 async def callbacks_choice(call: types.CallbackQuery):
     try:
+        await call.message.delete_reply_markup()
         global streams
         # Парсим строку и извлекаем действие, например `choice_video` -> `video`
         action = call.data.split("_")[1]
@@ -109,15 +106,14 @@ async def callbacks_choice(call: types.CallbackQuery):
 
 """ Ловим выбор качества видео или аудио
     Скачиваем видео или аудио и отправляем пользователю """
-
-
 # @dp.callback_query_handler(Text(startswith="quality_"), state=FSMclient.qualityState)
 async def callbacks_quality(call: types.CallbackQuery, state: FSMContext):
-    await call.answer()
+    await call.message.delete_reply_markup()
+    await call.answer('Начинаем загрузку....')
     await state.finish()
     stream_count = call.data.split("_")[1]
     get_url_download = streams[int(stream_count) - 1]
-    print(get_url_download)
+    # print(get_url_download)
     await download(get_url_download, urlPafy)
 
 
@@ -125,13 +121,21 @@ async def callbacks_quality(call: types.CallbackQuery, state: FSMContext):
     и отправляем фаил пользователю              """
 
 
-# @bot.message_handler(content_types=["document", "video", "audio"])
-async def handle_files(message):
-    document_id = message.document.file_id
+# @bot.message_handler(content_types=["audio"])
+async def handler_audio(message: types.Message):
+    fail_id = message.document.file_id
+    await bot.send_audio(chat_id, fail_id)  # Отправляем пользователю file_id
 
-    # print(document_id) # Выводим file_id
 
-    await bot.send_audio(chat_id, document_id)  # Отправляем пользователю file_id
+# print(document_id) # Выводим file_id
+
+# @bot.message_handler(content_types=["video"])
+async def handler_video(message: types.Message):
+    fail_id = message.video.file_id
+    await bot.send_video(chat_id, fail_id)  # Отправляем пользователю file_id
+
+
+# print(document_id) # Выводим file_id
 
 
 # Хэндлер на текстовое сообщение с текстом “Отмена”
@@ -144,11 +148,12 @@ async def action_cancel(message: types.Message):
     await message.delete()
 
 
-def register_handlers_client(dp: Dispatcher):
+def register_handlers_bot(dp: Dispatcher):
     dp.register_message_handler(commands_start, commands='start')
     dp.register_message_handler(get_url, state=FSMclient.urlState)
     dp.register_callback_query_handler(callbacks_choice, Text(startswith="choice_"), state=FSMclient.choiceState)
     dp.register_callback_query_handler(callbacks_quality, Text(startswith="quality_"), state=FSMclient.qualityState)
-    dp.register_message_handler(handle_files, content_types=["document", "video", "audio"])
-    dp.register_message_handler(action_cancel, commands='отмена')
-    dp.register_message_handler(action_cancel, Text(equals='отмена', ignore_case=True))
+    dp.register_message_handler(handler_video, content_types=["video"])
+    dp.register_message_handler(handler_audio, content_types=["document", "audio"])
+    dp.register_message_handler(action_cancel, commands='отмена', state="*")
+    dp.register_message_handler(action_cancel, Text(equals='отмена', ignore_case=True), state="*")
