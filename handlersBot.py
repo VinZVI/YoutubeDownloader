@@ -1,3 +1,4 @@
+from re import fullmatch
 import pafy
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
@@ -50,9 +51,9 @@ async def commands_start(message: types.Message):
 """ Ловим Url и записываем его в память"""
 # @dp.message_handler(state=FSMclient.urlState)
 async def get_url(message: types.Message):
-    # if not fullmatch(r"(https?:\/\/)?(\www\.youtube)\.([a-z]{2,6}\.?)(\/[\w\.]*)*\/?.*", message.text):
-    #     await message.reply('Пожалуйста. Введие данные в формате Url - https://www.youtube.com/...')
-    #     return
+    if not fullmatch(r"(https?://)?(www\.)?(yotu\.be/|youtube\.com/)?((.+/)?(watch(\?v=|.+&v=))?(v=)?)([\w_-]{11})(&.+)?", message.text):
+        await message.reply('Пожалуйста. Введие данные в формате Url - https://www.youtube.com/...')
+        return
     global urlPafy
     urlPafy = pafy.new(message.text)
     # print(urlPafy)
